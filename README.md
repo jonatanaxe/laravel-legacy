@@ -80,9 +80,27 @@ app/Jobs/ImportTasksCsv.php                    queued import (stream, $tries = 1
 app/Console/Commands/SendDueSoonReminders.php  atomic reminder claim
 resources/views/partials/ui.blade.php          design tokens (single source of color)
 tailwind.config.js                             Tailwind 1 classes mapped to the tokens
+app/Migration/{Overview,Evidence}.php          /migration page + home counts, read from the snapshot
+app/Console/Commands/{VerifyHttp,MigrationSnapshot}.php   lab:verify and lab:snapshot
 tests/Feature/ · tests/Unit/Legacy/            behavior and attack suite (kernel)
 tests/Http/                                    edge suite: real HTTP
+.github/workflows/ci.yml                       the pipeline (docs/ci.md)
+.github/actions/setup/                         shared PHP 7.2 + Composer setup for every CI job
 ```
+
+## How a change gets in
+
+Nothing is committed straight to `main`. Every change, however small:
+
+1. a branch cut from `main`, one logical unit per branch;
+2. a pull request filled from the template: **What, Why, Verification,
+   Rollback**;
+3. CI green: lint, kernel suite, edge suite against a running server, and the
+   `lab:snapshot` evidence (details in [docs/ci.md](docs/ci.md));
+4. squash merge, so `main` reads as one commit per step.
+
+CI also runs every night, with no code change, to catch the environment
+rotting under a legacy app, and can be started by hand before a demo.
 
 ## Conventions
 
