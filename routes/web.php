@@ -15,7 +15,7 @@ Route::get('/', function () {
     // The case presentation always lives at "/": it is what gets shown to
     // the CTO. Logged-in users see it too (the hero CTA points to the app)
     // instead of being pushed into the app and never finding it again.
-    return view('welcome');
+    return view('welcome', ['evidence' => (new App\Migration\Evidence())->measured()]);
 });
 
 // Migration overview: public, like the home page. Shows no user data, only

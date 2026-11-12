@@ -45,7 +45,7 @@ migration to PHP 8.4.
 - Four layers (`auth` middleware, `authorize()`, policy, query scope).
 - Security headers, hardened session cookie, HSTS over HTTPS, CSP without
   inline scripts.
-- **183 tests**: 150 in the kernel (509 assertions) and 33 at the edge against
+- **186 tests**: 153 in the kernel (514 assertions) and 33 at the edge against
   real HTTP: CSRF, cookies, throttling, headers, TLS and IDOR between sessions.
 
 ## Decisions and why
@@ -72,7 +72,7 @@ migration to PHP 8.4.
 ## What is proven (and how to reproduce it)
 
 ```bash
-# 150 tests, 509 assertions, about 2 s (in-memory SQLite)
+# 153 tests, 514 assertions, about 2 s (in-memory SQLite)
 madock cli 'vendor/bin/phpunit --testdox'
 
 # 33 HTTP tests against the live environment

@@ -47,7 +47,7 @@ HTTPS at `https://laravel-legacy.dev`); its config is not versioned.
 ## Verification
 
 ```bash
-# 150 tests, 509 assertions (in-memory SQLite)
+# 153 tests, 514 assertions (in-memory SQLite)
 vendor/bin/phpunit --testdox
 
 # 33 HTTP tests against the running app (CSRF, cookies, throttle, TLS, IDOR, CSP)
