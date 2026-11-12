@@ -155,7 +155,7 @@ abstract class HttpTestCase extends TestCase
 
     protected function projectTaskId()
     {
-        $payload = $this->apiJson('/api/tasks?q=Inventariar', $this->anaToken());
+        $payload = $this->apiJson('/api/tasks?q=Inventory', $this->anaToken());
 
         $this->assertNotEmpty($payload['data'], 'seed has no project task');
         $this->assertNotEmpty(
