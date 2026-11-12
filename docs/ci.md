@@ -24,6 +24,7 @@ production. Workflow: `.github/workflows/ci.yml`.
 ```
 lint ──┬── kernel tests ──┐
        ├── http (edge) ───┴── evidence (lab:snapshot)
+       ├── migrations (rollback on MariaDB)
        ├── coverage (report)
        └── dependency audit (report)
 ```
@@ -33,6 +34,7 @@ lint ──┬── kernel tests ──┐
 | **lint** | Every PHP file parses, including views, routes and commands no test loads; `composer.lock` matches `composer.json` | `php -l` on `app database routes tests`, `composer validate` | none |
 | **kernel tests** | The business rules: authorization, mass assignment, concurrency (409), audit trail, CSV import, reminders, the frozen legacy billing module | `vendor/bin/phpunit` on in-memory SQLite | `kernel-reports`: JUnit XML + testdox |
 | **http (edge) tests** | What only exists over real HTTP: CSRF (419), cookies, throttling (429), security headers, IDOR between sessions | seeds a SQLite file, starts `php artisan serve`, runs `php artisan lab:verify` | `edge-reports`: JUnit XML + server log |
+| **migrations** | Every migration can be rolled back and re-applied: "every step has a rollback", executed instead of claimed | MariaDB 11.8 service (the production engine): `migrate --seed`, `migrate:reset`, check nothing is left applied, `migrate` + `db:seed` again | none |
 | **evidence** | The measured state of the migration: PHP 8.4 blockers (`composer why-not php 8.4`) and both suites, in one file | `php artisan lab:snapshot` | `migration-snapshot`: `snapshot.json`, kept 90 days |
 | **coverage** *(report)* | How much of `app/` the kernel suite executes: the answer to "how much of the legacy is frozen?" | `phpunit` with Xdebug (PHPUnit 7.5 predates PCOV) | `coverage`: HTML report + clover XML |
 | **dependency audit** *(report)* | Known security advisories and abandoned packages in `composer.lock` | `composer audit --locked` | `dependency-audit`: `audit.json` |
@@ -87,6 +89,17 @@ step, not an automatic PR.
 Verification and Rollback**. The last section is the method in one line: a
 change without a rollback is a gamble, not a step.
 
+### Why rollback is tested on MariaDB, not SQLite
+
+Writing this job found that the down() methods never worked on SQLite:
+SQLite rebuilds a table to drop a column, losing its indexes and foreign keys,
+and Laravel 5.8 refuses to drop a foreign key there at all. Making every
+down() SQLite-safe would mean editing many applied migrations for an engine
+that never runs in production. So the contract is explicit: **rollback is
+guaranteed on MariaDB**, where it passes for all migrations, and the SQLite
+databases of development and CI are recreated with `migrate:fresh`, never
+rolled back.
+
 ## Reproduce it locally
 
 The same commands, in the same order:
@@ -97,6 +110,10 @@ composer validate --no-check-publish
 vendor/bin/phpunit --testdox                          # kernel
 php artisan lab:verify --base=http://127.0.0.1:8000   # edge, server running
 php artisan lab:snapshot                              # evidence
+# migrations, on a scratch MariaDB database (never the one with your data):
+DB_DATABASE=rollback_check php artisan migrate --seed --force
+DB_DATABASE=rollback_check php artisan migrate:reset --force
+DB_DATABASE=rollback_check php artisan migrate --seed --force
 ```
 
 ## Safety rails
