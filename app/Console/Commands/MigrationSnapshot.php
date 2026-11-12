@@ -20,7 +20,9 @@ use Symfony\Component\Process\Process;
 class MigrationSnapshot extends Command
 {
     protected $signature = 'lab:snapshot
-                            {--skip-tests : Only record the blocker inventory (fast)}';
+                            {--skip-tests : Only record the blocker inventory (fast)}
+                            {--kernel-junit= : Read the kernel suite from this JUnit report instead of running it}
+                            {--edge-junit= : Read the edge suite from this JUnit report instead of running it}';
 
     protected $description = 'Measures blockers (composer why-not) and suites, and writes storage/app/migration/snapshot.json';
 
@@ -42,7 +44,18 @@ class MigrationSnapshot extends Command
             $this->warn('inventory could not be measured now; keeping the previous one');
         }
 
-        if ($this->option('skip-tests')) {
+        if ($this->option('kernel-junit') || $this->option('edge-junit')) {
+            // CI: the suites already ran in their own jobs, and those runs are
+            // what gated the merge. Recording their reports, instead of
+            // running everything a second time, makes the snapshot quote
+            // exactly the runs that passed.
+            $snapshot['suites'][] = $this->fromJunit(
+                'kernel', 'Kernel (in-memory SQLite)', 'vendor/bin/phpunit', $this->option('kernel-junit')
+            );
+            $snapshot['suites'][] = $this->fromJunit(
+                'http', 'Edge (real HTTP)', 'php artisan lab:verify', $this->option('edge-junit')
+            );
+        } elseif ($this->option('skip-tests')) {
             $snapshot['suites'] = isset($previous['suites']) ? $previous['suites'] : [];
         } else {
             // This process loaded .env and exported it; the child would inherit
@@ -174,6 +187,44 @@ class MigrationSnapshot extends Command
             'seconds' => round($elapsed, 2),
             'exit' => $process->getExitCode(),
         ];
+    }
+
+    /**
+     * Totals of a PHPUnit JUnit report (the root <testsuite>). A missing or
+     * unreadable report is recorded as a failed suite, never as zero tests
+     * that look green.
+     */
+    private function fromJunit($key, $label, $command, $path)
+    {
+        $suite = [
+            'key' => $key,
+            'label' => $label,
+            'command' => $command,
+            'ok' => false,
+            'tests' => 0,
+            'assertions' => 0,
+            'seconds' => 0,
+            'exit' => null,
+            'source' => 'junit',
+        ];
+
+        $xml = $path && is_file($path) ? @simplexml_load_file($path) : false;
+
+        if (!$xml || !isset($xml->testsuite)) {
+            $this->warn('no readable JUnit report for ' . $key . ': ' . ($path ?: '(not given)'));
+
+            return $suite;
+        }
+
+        $root = $xml->testsuite;
+        $suite['tests'] = (int) $root['tests'];
+        $suite['assertions'] = (int) $root['assertions'];
+        $suite['seconds'] = round((float) $root['time'], 2);
+        $suite['ok'] = $suite['tests'] > 0
+            && (int) $root['failures'] === 0
+            && (int) $root['errors'] === 0;
+
+        return $suite;
     }
 
     private function read($path)

@@ -95,9 +95,19 @@ Nothing is committed straight to `main`. Every change, however small:
 1. a branch cut from `main`, one logical unit per branch;
 2. a pull request filled from the template: **What, Why, Verification,
    Rollback**;
-3. CI green: lint, kernel suite, edge suite against a running server,
-   every migration rolled back and re-applied on MariaDB, and the
-   `lab:snapshot` evidence (details in [docs/ci.md](docs/ci.md));
+3. the five gates of the pipeline green (details and the why of each in
+   [docs/ci.md](docs/ci.md)):
+
+   | Gate | Proves |
+   |---|---|
+   | Static · PHP syntax + composer.lock | every file parses, the lock matches |
+   | Tests · business rules (kernel) | the app's rules and the frozen legacy module |
+   | Tests · real HTTP (edge) | CSRF, cookies, throttling, headers, IDOR over real HTTP |
+   | Rollback · every migration on MariaDB | every `down()` runs and the schema rebuilds |
+   | Evidence · migration snapshot | blockers and suite results recorded for this commit |
+
+   plus two reports that measure without blocking: test coverage and
+   dependency advisories;
 4. squash merge, so `main` reads as one commit per step.
 
 CI also runs every night, with no code change, to catch the environment

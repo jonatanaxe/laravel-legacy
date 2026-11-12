@@ -1,19 +1,22 @@
-name: ci
+name: Pipeline
 
-# Minimum gate for a legacy app: nothing gets in unless the tests pass.
-# Runs on PHP 7.2 (the same version as the container) so CI proves the
-# "before", not a version the project doesn't support.
+# Minimum gate for a legacy app: nothing reaches main unless its behavior is
+# proven again, on PHP 7.2 (the same version as production and the local
+# container). The "why" of every choice below is in docs/ci.md.
 #
-# Jobs, in the order a reviewer reads them (details: docs/ci.md):
-#   lint      syntax of every PHP file + composer.json/lock in sync
-#   kernel    behavior suite, in-memory SQLite        -> JUnit + testdox
-#   edge      real HTTP against `artisan serve`       -> JUnit
-#   migrations up, reset (every down()), up on MariaDB
-#   evidence  lab:snapshot: blockers + both suites    -> snapshot.json
-#   coverage  (report) line coverage of app/          -> HTML + clover
-#   audit     (report) composer audit                 -> audit.json
+# Check names read "<stage> · <what it proves>":
+#   Static   · PHP syntax + composer.lock      gate
+#   Tests    · business rules (kernel)         gate    -> JUnit + testdox
+#   Tests    · real HTTP (edge)                gate    -> JUnit + server log
+#   Rollback · every migration on MariaDB      gate
+#   Evidence · migration snapshot              gate    -> snapshot.json
+#   Report   · test coverage                   report  -> HTML + clover
+#   Report   · dependency advisories           report  -> audit.json
 on:
+  # Pushes to main only: a PR branch is already covered by pull_request, and
+  # running both doubled every run.
   push:
+    branches: [main]
   pull_request:
   # Nightly, with no code change: in a legacy app the environment rots on its
   # own (a retired runner image, a PPA dropping PHP 7.2). This finds out
@@ -23,10 +26,11 @@ on:
   # Manual run from the Actions tab, e.g. right before a demo.
   workflow_dispatch:
 
-# A new push to the same branch makes the previous run worthless.
+# On a PR, a new push makes the previous run worthless: cancel it. On main,
+# never: every merged commit keeps its own complete run as proof.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -36,7 +40,7 @@ env:
 
 jobs:
   lint:
-    name: lint
+    name: Static · PHP syntax + composer.lock
     # ubuntu-20.04 runners were retired in 2025. setup-php installs 7.2 from
     # the ondrej PPA here; same base as the local container (PHP 7.2 on 22.04).
     runs-on: ubuntu-22.04
@@ -56,7 +60,7 @@ jobs:
         run: composer validate --no-check-publish
 
   kernel:
-    name: kernel tests
+    name: Tests · business rules (kernel)
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 15
@@ -97,7 +101,7 @@ jobs:
           retention-days: 30
 
   edge:
-    name: http (edge) tests
+    name: Tests · real HTTP (edge)
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 15
@@ -150,7 +154,7 @@ jobs:
           retention-days: 30
 
   migrations:
-    name: migrations (rollback on MariaDB)
+    name: Rollback · every migration on MariaDB
     # "Every step has a rollback" is a claim until something runs the down()
     # methods. This job does, on MariaDB 11.8 (the production engine, same
     # version as the local container), with seeded data in the tables.
@@ -162,7 +166,8 @@ jobs:
     timeout-minutes: 15
     services:
       mariadb:
-        image: mariadb:11.8
+        # Exact version, like the actions: same as the local container.
+        image: mariadb:11.8.9
         env:
           MARIADB_ROOT_PASSWORD: root
           MARIADB_DATABASE: atlas
@@ -213,10 +218,64 @@ jobs:
         if: always()
         run: |
           {
-            echo '### Migrations on MariaDB 11.8'
+            echo '### Migrations on MariaDB 11.8.9'
             echo
             echo "**$(ls database/migrations/*.php | wc -l) migrations**: up with seed, reset (every down()), up and seed again."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  evidence:
+    name: Evidence · migration snapshot
+    # Records the measured state the /migration and home pages read: PHP 8.4
+    # blockers plus the results of the two suites. It does not run the suites
+    # again: it reads the JUnit reports of the runs that gated this commit, so
+    # the snapshot quotes exactly those runs.
+    needs: [kernel, edge]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/setup
+        with:
+          php: ${{ env.PHP_VERSION }}
+
+      - name: Fetch the suites' reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: '*-reports'
+          path: reports
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Measure (blockers + recorded suites)
+        run: >
+          php artisan lab:snapshot
+          --kernel-junit=reports/kernel-reports/kernel-junit.xml
+          --edge-junit=reports/edge-reports/edge-junit.xml
+
+      - name: Summary
+        if: always()
+        run: |
+          php -r '
+            $s = json_decode(@file_get_contents("storage/app/migration/snapshot.json"), true);
+            if (!$s) { echo "### Evidence\n\nno snapshot\n"; exit; }
+            echo "### Evidence (lab:snapshot)\n\n";
+            echo "| Measure | Value |\n|---|---|\n";
+            printf("| PHP | %s |\n| Laravel | %s |\n| PHP 8.4 blockers | %d |\n", $s["php"] ?? "?", $s["laravel"] ?? "?", count($s["blockers"] ?? []));
+            foreach ($s["suites"] ?? [] as $suite) {
+              printf("| %s | %s, %d tests, %d assertions |\n", $suite["label"], $suite["ok"] ? "green" : "FAILED", $suite["tests"], $suite["assertions"]);
+            }
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload snapshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: migration-snapshot
+          path: storage/app/migration/snapshot.json
+          retention-days: 90
 
   # ---------------------------------------------------------------- reports
   # Measurements, not gates: they never block a merge. Both answer questions
@@ -224,7 +283,7 @@ jobs:
   # risks does it carry?" - with a number from CI instead of an estimate.
 
   coverage:
-    name: coverage (report)
+    name: Report · test coverage
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 20
@@ -271,7 +330,7 @@ jobs:
           retention-days: 30
 
   audit:
-    name: dependency audit (report)
+    name: Report · dependency advisories
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 10
@@ -280,6 +339,9 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           php: ${{ env.PHP_VERSION }}
+          # composer audit needs Composer 2.4+, and its value is the current
+          # advisory database: this report uses the latest 2.x on purpose.
+          composer: v2
 
       - name: Known vulnerabilities and abandoned packages
         # Laravel 5.8 / PHP 7.2 carries known advisories by design: that is
@@ -316,60 +378,3 @@ jobs:
           name: dependency-audit
           path: build/audit.json
           retention-days: 30
-
-  evidence:
-    name: evidence (lab:snapshot)
-    # Runs after both suites are green: the snapshot is the measured state the
-    # /migration page and the home page read, produced by CI instead of a laptop.
-    needs: [kernel, edge]
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    env:
-      APP_URL: http://127.0.0.1:8000
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: ./.github/actions/setup
-        with:
-          php: ${{ env.PHP_VERSION }}
-
-      - name: Prepare environment
-        run: |
-          cp .env.example .env
-          php artisan key:generate
-          touch database/database.sqlite
-          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env
-          sed -i 's#^DB_DATABASE=.*#DB_DATABASE='"$PWD"'/database/database.sqlite#' .env
-          sed -i 's#^APP_URL=.*#APP_URL='"$APP_URL"'#' .env
-          echo 'SESSION_SECURE_COOKIE=false' >> .env
-          php artisan migrate --seed --force
-
-      - name: Measure (blockers + both suites)
-        run: |
-          php artisan serve --host=127.0.0.1 --port=8000 > /dev/null 2>&1 &
-          for i in $(seq 1 30); do
-            curl -sf "$APP_URL/health" > /dev/null && break
-            sleep 1
-          done
-          php artisan lab:snapshot
-
-      - name: Summary
-        if: always()
-        run: |
-          php -r '
-            $s = json_decode(@file_get_contents("storage/app/migration/snapshot.json"), true);
-            if (!$s) { echo "### Evidence\n\nno snapshot\n"; exit; }
-            echo "### Evidence (lab:snapshot)\n\n";
-            echo "| Measure | Value |\n|---|---|\n";
-            printf("| PHP | %s |\n| Laravel | %s |\n| PHP 8.4 blockers | %d |\n", $s["php"] ?? "?", $s["laravel"] ?? "?", count($s["blockers"] ?? []));
-            foreach ($s["suites"] ?? [] as $suite) {
-              printf("| %s | %s, %d tests, %d assertions |\n", $suite["label"], $suite["ok"] ? "green" : "FAILED", $suite["tests"], $suite["assertions"]);
-            }
-          ' >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload snapshot
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: migration-snapshot
-          path: storage/app/migration/snapshot.json
-          retention-days: 90

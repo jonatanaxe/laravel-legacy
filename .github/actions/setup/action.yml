@@ -1,7 +1,7 @@
 name: Set up PHP and dependencies
 description: >
-  PHP from setup-php (same version as the local container), Composer cache
-  keyed on composer.lock, and composer install. Shared by every job so the
+  PHP and Composer from setup-php (same versions as the local container),
+  Composer cache keyed on composer.lock, and composer install. Shared by every job so the
   runtime is identical across them.
 
 inputs:
@@ -12,6 +12,10 @@ inputs:
     description: Coverage driver (none, xdebug)
     required: false
     default: none
+  composer:
+    description: Composer version (exact, like the local container's)
+    required: false
+    default: 2.2.32
 
 runs:
   using: composite
@@ -24,6 +28,7 @@ runs:
         # pdo_mysql is for the migrations job, which runs on MariaDB.
         extensions: mbstring, pdo_sqlite, sqlite3, pdo_mysql, openssl, tokenizer, xml, curl, dom, ctype, json
         coverage: ${{ inputs.coverage }}
+        tools: composer:${{ inputs.composer }}
 
     - name: Composer cache
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
