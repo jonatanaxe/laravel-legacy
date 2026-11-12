@@ -147,7 +147,7 @@ L5.8 / PHP 7.2 → L6-8 / 7.4 → L8 / 8.0 → L9 / 8.1 → L10 / 8.2 → L11-13
 2. **Sign in as Ana**: the dashboard (overdue, my week, recent activity).
 3. **Tasks**: filter "Overdue", sort by due date, open a task (history, details).
 4. **Two tabs on the same task**: the second save gets **409**.
-5. **Projects → Laravel 8.4 Migration**: overview, then the Schedule tab.
+5. **Projects → PHP 8.4 Migration**: overview, then the Schedule tab.
 6. **Billing**: the legacy report shows drafts as "Issued"; the new summary next
    to it is correct. That is code frozen by tests, not a slip.
 7. **Theme switch**: Atlas → PALO IT. One CSS block, no screen touched.

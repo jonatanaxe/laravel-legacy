@@ -224,7 +224,7 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://laravel-legacy.dev/api/tasks
 
 ## Test accounts
 
-| Email | Password | Role in "Laravel 8.4 Migration" |
+| Email | Password | Role in "PHP 8.4 Migration" |
 |---|---|---|
 | `ana@example.com` | `secret123` | owner |
 | `bruno@example.com` | `secret123` | member |
