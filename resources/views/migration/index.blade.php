@@ -20,6 +20,9 @@
         $measured = $overview['measured'];
         $abandoned = $overview['abandoned'];
         $stepCount = count($overview['ladder']) - 1;
+        // Not measured is not zero: without a snapshot, counts show a dash.
+        $isMeasured = $measured['at'] !== null;
+        $hasSuites = (bool) $totals['suites'];
     @endphp
 
     <header class="hero hero-dash">
@@ -34,15 +37,20 @@
 
                 <p class="lead">
                     A real Laravel 5.8 / PHP 7.2 app used as a migration rehearsal:
-                    behavior frozen by {{ $totals['tests'] }} tests,
-                    {{ count($blockers) }} measured dependency blockers and every step
-                    with a deploy and a rollback. The numbers on this page come from the environment,
-                    not from the README.
+                    @if ($isMeasured)
+                        behavior frozen by {{ $totals['tests'] }} tests,
+                        {{ count($blockers) }} measured dependency blockers and every step
+                        with a deploy and a rollback.
+                    @else
+                        behavior frozen by tests, dependency blockers measured by
+                        <code>composer why-not</code> and every step with a deploy and a rollback.
+                    @endif
+                    The numbers on this page come from the environment, not from the README.
                 </p>
 
                 <div class="actions">
                     <a class="btn btn-primary" href="#runbook">6-minute runbook</a>
-                    <a class="btn btn-ghost" href="#blockers">The {{ count($blockers) }} blockers</a>
+                    <a class="btn btn-ghost" href="#blockers">{{ $isMeasured ? 'The ' . count($blockers) . ' blockers' : 'Blocker inventory' }}</a>
                     <a class="btn btn-ghost" href="{{ url('/') }}#concepts">Concepts and defenses</a>
                 </div>
             </div>
@@ -58,7 +66,7 @@
                 <div class="spec-row"><span class="spec-k">Runtime</span><span class="spec-v">PHP {{ $env['php'] }}</span></div>
                 <div class="spec-row"><span class="spec-k">Framework</span><span class="spec-v">Laravel {{ $env['laravel'] }}</span></div>
                 <div class="spec-row"><span class="spec-k">Installed packages</span><span class="spec-v">{{ $env['packages'] }}</span></div>
-                <div class="spec-row"><span class="spec-k">PHP 8.4 blockers</span><span class="spec-v">{{ count($blockers) }}</span></div>
+                <div class="spec-row"><span class="spec-k">PHP 8.4 blockers</span><span class="spec-v">{{ $isMeasured ? count($blockers) : 'not measured' }}</span></div>
                 <div class="spec-row"><span class="spec-k">Database</span><span class="spec-v">{{ $env['database'] }}</span></div>
 
                 <div class="terminal" aria-hidden="true">
@@ -77,7 +85,7 @@
                 </div>
 
                 <div class="spec-foot">
-                    <span><b>{{ $totals['tests'] }}</b> tests</span>
+                    <span><b>{{ $hasSuites ? $totals['tests'] : '—' }}</b> tests</span>
                     <span><b>{{ count($abandoned) }}</b> abandoned</span>
                     <span><b>{{ $stepCount }}</b> steps</span>
                 </div>
@@ -94,22 +102,24 @@
                     <div class="stat-note">Laravel {{ $now['laravel'] }} · PHP {{ $now['php'] }}</div>
                 </div>
 
-                <div class="stat {{ count($blockers) ? 'is-danger' : 'is-ok' }}">
+                <div class="stat {{ !$isMeasured ? '' : (count($blockers) ? 'is-danger' : 'is-ok') }}">
                     <div class="stat-label">PHP 8.4 blockers</div>
-                    <div class="stat-value">{{ count($blockers) }}</div>
+                    <div class="stat-value">{{ $isMeasured ? count($blockers) : '—' }}</div>
                     <div class="stat-note">
-                        @if ($blockers)
+                        @if (!$isMeasured)
+                            not measured yet
+                        @elseif ($blockers)
                             {{ count($overview['blocker_groups']) }} exit tracks
                         @else
-                            inventory not measured
+                            nothing blocks the jump
                         @endif
                     </div>
                 </div>
 
                 <div class="stat {{ $totals['green'] ? 'is-ok' : '' }}">
                     <div class="stat-label">Green tests</div>
-                    <div class="stat-value">{{ $totals['tests'] }}</div>
-                    <div class="stat-note">{{ $totals['assertions'] }} assertions</div>
+                    <div class="stat-value">{{ $hasSuites ? $totals['tests'] : '—' }}</div>
+                    <div class="stat-note">{{ $hasSuites ? $totals['assertions'] . ' assertions' : 'not measured yet' }}</div>
                 </div>
 
                 <div class="stat">
@@ -197,6 +207,11 @@
                                     @endforeach
                                 </tbody>
                             </table>
+                        </div>
+                    @elseif ($isMeasured)
+                        <div class="empty">
+                            <h3>Nothing blocks the jump</h3>
+                            <p>Every installed package already accepts PHP 8.4.</p>
                         </div>
                     @else
                         <div class="empty">
