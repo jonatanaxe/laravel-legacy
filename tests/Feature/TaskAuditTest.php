@@ -65,14 +65,17 @@ class TaskAuditTest extends TestCase
 
     public function test_history_shows_on_the_task_screen()
     {
-        $ana = factory(User::class)->create();
+        // A fixed name, apostrophe included on purpose. With the factory's
+        // random name the test failed whenever Faker drew "O'Reilly": Blade
+        // escapes ' to &#039; and Laravel 5.8's assertSee compares raw text.
+        $ana = factory(User::class)->create(['name' => "Ana O'Neil"]);
         $task = factory(Task::class)->create(['user_id' => $ana->id]);
 
         $this->actingAs($ana)->get('/tasks/' . $task->id)
             ->assertStatus(200)
             ->assertSee('History')
             ->assertSee('created the task')
-            ->assertSee($ana->name);
+            ->assertSee(e($ana->name));
     }
 
     public function test_event_survives_the_task_delete()
