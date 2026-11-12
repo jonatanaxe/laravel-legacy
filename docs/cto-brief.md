@@ -143,6 +143,9 @@ L5.8 / PHP 7.2 → L6-8 / 7.4 → L8 / 8.0 → L9 / 8.1 → L10 / 8.2 → L11-13
 
 ## Demo runbook (6 minutes)
 
+Before: `php artisan lab:snapshot`, so `/migration` shows measured blockers
+and suites instead of "not measured".
+
 1. **Presentation (`/`)**: concepts, the ladder, the evidence table.
 2. **Sign in as Ana**: the dashboard (overdue, my week, recent activity).
 3. **Tasks**: filter "Overdue", sort by due date, open a task (history, details).
