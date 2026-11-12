@@ -43,17 +43,27 @@
                 <div class="spec-row"><span class="spec-k">Database</span><span class="spec-v">MariaDB 11</span></div>
                 <div class="spec-row"><span class="spec-k">Front end</span><span class="spec-v">Tailwind 1.9 · Alpine 2.8</span></div>
 
+                {{-- Counts come from the lab:snapshot file, the same source as
+                     /migration. No snapshot: the page says so instead of
+                     quoting a number that may have drifted. --}}
                 <div class="terminal" aria-hidden="true">
-                    <div class="term-line"><span class="prompt">$</span> vendor/bin/phpunit</div>
-                    <div class="term-line"><span class="dim">OK (150 tests, 509 assertions)</span></div>
-                    <div class="term-line"><span class="prompt">$</span> php artisan lab:verify</div>
-                    <div class="term-line"><span class="dim">OK (32 tests, 169 assertions)</span></div>
+                    @if ($evidence)
+                        @foreach ($evidence['suites'] as $suite)
+                            <div class="term-line"><span class="prompt">$</span> {{ $suite['command'] }}</div>
+                            <div class="term-line">
+                                <span class="dim">{{ $suite['ok'] ? 'OK' : 'FAILED' }} ({{ $suite['tests'] }} tests, {{ $suite['assertions'] }} assertions)</span>
+                            </div>
+                        @endforeach
+                    @else
+                        <div class="term-line"><span class="prompt">$</span> php artisan lab:snapshot</div>
+                        <div class="term-line"><span class="dim">not measured on this machine yet</span></div>
+                    @endif
                 </div>
 
                 <div class="spec-foot">
-                    <span><b>182</b> tests</span>
-                    <span><b>32</b> at the edge (real HTTP)</span>
-                    <span><b>9</b> PHP 8.4 blockers</span>
+                    <span><b>{{ $evidence ? $evidence['tests'] : '—' }}</b> tests</span>
+                    <span><b>{{ $evidence && isset($evidence['suites']['http']) ? $evidence['suites']['http']['tests'] : '—' }}</b> at the edge (real HTTP)</span>
+                    <span><b>{{ $evidence && $evidence['blockers'] !== null ? $evidence['blockers'] : '—' }}</b> PHP 8.4 blockers</span>
                 </div>
             </aside>
         </div>
@@ -263,7 +273,15 @@
             <div class="section-head">
                 <div class="kicker">evidence</div>
                 <h2>Tests that ran on this machine</h2>
-                <p>182 tests: 150 for behavior in the kernel and 32 at the edge against real HTTP. Measured on this machine: the environment's answer, not a README promise.</p>
+                <p>
+                    @if ($evidence && isset($evidence['suites']['kernel'], $evidence['suites']['http']))
+                        {{ $evidence['tests'] }} tests: {{ $evidence['suites']['kernel']['tests'] }} for behavior in the kernel
+                        and {{ $evidence['suites']['http']['tests'] }} at the edge against real HTTP.
+                    @else
+                        Two suites: behavior in the kernel and the edge against real HTTP.
+                    @endif
+                    Measured on this machine: the environment's answer, not a README promise.
+                </p>
             </div>
 
             <div class="evidence">
