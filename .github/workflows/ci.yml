@@ -10,6 +10,8 @@ name: ci
 #   edge      real HTTP against `artisan serve`       -> JUnit
 #   migrations up, reset (every down()), up on MariaDB
 #   evidence  lab:snapshot: blockers + both suites    -> snapshot.json
+#   coverage  (report) line coverage of app/          -> HTML + clover
+#   audit     (report) composer audit                 -> audit.json
 on:
   push:
   pull_request:
@@ -215,6 +217,105 @@ jobs:
             echo
             echo "**$(ls database/migrations/*.php | wc -l) migrations**: up with seed, reset (every down()), up and seed again."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------- reports
+  # Measurements, not gates: they never block a merge. Both answer questions
+  # the CTO will ask - "how much of the legacy is frozen?" and "what known
+  # risks does it carry?" - with a number from CI instead of an estimate.
+
+  coverage:
+    name: coverage (report)
+    needs: lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/setup
+        with:
+          php: ${{ env.PHP_VERSION }}
+          # PHPUnit 7.5 predates PCOV support; Xdebug is the driver it knows.
+          coverage: xdebug
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          mkdir -p build
+
+      - name: Kernel suite with line coverage of app/
+        run: >
+          vendor/bin/phpunit --colors=never
+          --coverage-text=build/coverage.txt
+          --coverage-clover=build/clover.xml
+          --coverage-html=build/coverage-html
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Coverage of `app/` by the kernel suite'
+            echo
+            echo '```'
+            grep -A4 -m1 '^ *Summary:' build/coverage.txt 2>/dev/null | tail -n 4 || echo 'no report'
+            echo '```'
+            echo
+            echo 'The edge suite exercises the same code over real HTTP and is not counted here.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage
+          path: build/
+          retention-days: 30
+
+  audit:
+    name: dependency audit (report)
+    needs: lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/setup
+        with:
+          php: ${{ env.PHP_VERSION }}
+
+      - name: Known vulnerabilities and abandoned packages
+        # Laravel 5.8 / PHP 7.2 carries known advisories by design: that is
+        # the risk the migration removes. Report them; don't fail on them.
+        run: |
+          mkdir -p build
+          composer --version
+          composer audit --locked --format=json > build/audit.json || true
+
+      - name: Summary
+        if: always()
+        run: |
+          php -r '
+            $a = json_decode(@file_get_contents("build/audit.json"), true);
+            echo "### Dependency audit (`composer audit`)\n\n";
+            if (!is_array($a)) { echo "no report\n"; exit; }
+            $bySeverity = [];
+            $packages = 0;
+            foreach ($a["advisories"] ?? [] as $package => $list) {
+              $packages++;
+              foreach ($list as $adv) { $sev = $adv["severity"] ?? "unknown"; $bySeverity[$sev] = ($bySeverity[$sev] ?? 0) + 1; }
+            }
+            printf("**%d advisories in %d packages.** Expected on Laravel 5.8 / PHP 7.2: this is the risk the migration removes, reported here, not gated.\n\n", array_sum($bySeverity), $packages);
+            echo "| Severity | Advisories |\n|---|---|\n";
+            foreach (["critical", "high", "medium", "low", "unknown"] as $sev) { if (!empty($bySeverity[$sev])) printf("| %s | %d |\n", $sev, $bySeverity[$sev]); }
+            $abandoned = $a["abandoned"] ?? [];
+            if ($abandoned) { echo "\n**Abandoned:** " . implode(", ", array_map(function ($p) { return "`$p`"; }, array_keys($abandoned))) . "\n"; }
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-audit
+          path: build/audit.json
+          retention-days: 30
 
   evidence:
     name: evidence (lab:snapshot)

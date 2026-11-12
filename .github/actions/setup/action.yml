@@ -8,6 +8,10 @@ inputs:
   php:
     description: PHP version
     required: true
+  coverage:
+    description: Coverage driver (none, xdebug)
+    required: false
+    default: none
 
 runs:
   using: composite
@@ -19,7 +23,7 @@ runs:
         # curl/dom are for the HTTP suite (tests/Http): Guzzle and HTML via DOM.
         # pdo_mysql is for the migrations job, which runs on MariaDB.
         extensions: mbstring, pdo_sqlite, sqlite3, pdo_mysql, openssl, tokenizer, xml, curl, dom, ctype, json
-        coverage: none
+        coverage: ${{ inputs.coverage }}
 
     - name: Composer cache
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
