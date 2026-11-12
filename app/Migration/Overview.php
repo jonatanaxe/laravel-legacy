@@ -3,6 +3,7 @@
 namespace App\Migration;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Reading of the migration state, built from facts about the environment.
@@ -181,11 +182,11 @@ class Overview
 
         return [
             'environment' => [
-                'php' => PHP_VERSION,
+                'php' => self::phpVersion(),
                 'laravel' => app()->version(),
                 'packages' => $lock['count'],
                 'root_php' => $lock['root_php'],
-                'database' => config('database.default'),
+                'database' => $this->databaseLabel(),
             ],
             'ladder' => $this->ladder($current),
             'current' => $current,
@@ -205,6 +206,46 @@ class Overview
             'risks' => self::RISKS,
             'runbook' => self::RUNBOOK,
         ];
+    }
+
+    /**
+     * "7.2.34", not the distro build string PHP_VERSION carries
+     * ("7.2.34-66+0~20261021.122+ubuntu22.04~1.gbpe0bcd4").
+     */
+    public static function phpVersion()
+    {
+        return PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . '.' . PHP_RELEASE_VERSION;
+    }
+
+    /**
+     * The server actually answering, not the driver name: "mysql" is the
+     * driver for both MySQL and MariaDB, and the version matters for the plan.
+     */
+    private function databaseLabel()
+    {
+        $driver = config('database.default');
+
+        try {
+            $connection = DB::connection();
+
+            if ($driver === 'sqlite') {
+                return 'SQLite ' . $connection->selectOne('select sqlite_version() as v')->v;
+            }
+
+            $raw = (string) $connection->selectOne('select version() as v')->v;
+        } catch (\Throwable $e) {
+            return $driver;
+        }
+
+        if (preg_match('/^(\d+\.\d+)[\d.]*-MariaDB/i', $raw, $m)) {
+            return 'MariaDB ' . $m[1];
+        }
+
+        if (preg_match('/^(\d+\.\d+)/', $raw, $m)) {
+            return ($driver === 'pgsql' ? 'PostgreSQL ' : 'MySQL ') . $m[1];
+        }
+
+        return $driver;
     }
 
     // --------------------------------------------------------------- sources

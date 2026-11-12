@@ -21,7 +21,7 @@ class MigrationPageTest extends TestCase
         $this->get('/migration')
             ->assertStatus(200)
             ->assertSee('next step')
-            ->assertSee('PHP ' . PHP_VERSION);
+            ->assertSee('PHP ' . \App\Migration\Overview::phpVersion());
     }
 
     public function test_logged_in_user_sees_it_and_the_menu_links_to_it()

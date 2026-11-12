@@ -1068,6 +1068,101 @@
     .zoom-btn.is-active { background: var(--brand); color: var(--surface); font-weight: 600; }
     .zoom-btn:hover:not(.is-active) { background: var(--surface-2); }
 
+    /* ---------- migration overview (/migration) ----------
+          The page's markup existed without these rules, so it rendered as
+          plain text. Same vocabulary as the rest: hairlines, mono for
+          technical data, one accent. */
+    .hero-dash { padding: var(--sp-9) 0 var(--sp-8); }
+    .spec-live.spec-stale { color: var(--warn-line); }
+    .stats-dash { margin-top: var(--sp-6); }
+    .mono { font-family: var(--font-mono); font-size: var(--text-sm); }
+
+    .rail { list-style: none; margin: var(--sp-5) 0 0; padding: 0; border-top: 1px solid var(--line); }
+    .rail-step {
+        position: relative; display: grid;
+        grid-template-columns: 12px 120px 72px minmax(0, 1fr) auto;
+        align-items: baseline; column-gap: var(--sp-4); row-gap: 2px;
+        padding: var(--sp-3) var(--sp-3); border-bottom: 1px solid var(--line);
+    }
+    .rail-dot {
+        align-self: center; width: 10px; height: 10px; border-radius: var(--radius-pill);
+        background: var(--surface); border: 2px solid var(--line-strong);
+    }
+    .rail-ver { font-weight: 650; color: var(--ink); font-size: var(--text-base); }
+    .rail-php { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--muted); }
+    .rail-what { font-size: var(--text-base); color: var(--body); }
+    .rail-gate { grid-column: 4; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); }
+    .rail-step .badge { grid-column: 5; grid-row: 1; align-self: center; }
+    .rail-step.is-done .rail-dot { background: var(--ok); border-color: var(--ok); }
+    .rail-step.is-current { background: var(--brand-soft); border-radius: var(--radius-sm); }
+    .rail-step.is-current .rail-dot { background: var(--brand); border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-ring); }
+    .rail-step.is-target .rail-dot { border-color: var(--ok); }
+
+    .panel-head { padding: var(--sp-6) var(--sp-6) var(--sp-4); }
+    .blocker-summary { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-4); }
+    .blocker-tag {
+        font-size: var(--text-sm); color: var(--body); background: var(--surface-2);
+        border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 2px var(--sp-3);
+    }
+    .blocker-tag b { color: var(--danger); margin-right: 2px; }
+    .table-scroll { overflow-x: auto; }
+    .blockers { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
+    .blockers th {
+        text-align: left; font-size: var(--text-2xs); letter-spacing: var(--tracking-label);
+        text-transform: uppercase; color: var(--muted); font-weight: 650;
+        padding: var(--sp-3) var(--sp-6); background: var(--surface-2);
+        border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    }
+    .blockers td { padding: var(--sp-3) var(--sp-6); border-bottom: 1px solid var(--line); color: var(--body); vertical-align: top; }
+    .blockers tr:last-child td { border-bottom: 0; }
+
+    .oracle { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-4) var(--sp-5); min-width: 0; }
+    .oracle-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+    .oracle-ms { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); }
+    .oracle-value {
+        font-size: var(--text-display); font-weight: 700; color: var(--ink); line-height: 1.1;
+        margin: var(--sp-3) 0 2px; letter-spacing: -.035em; font-variant-numeric: tabular-nums;
+    }
+    .oracle-note { font-size: var(--text-sm); color: var(--muted); margin: 0 0 var(--sp-3); }
+    .oracle-cmd { display: block; font-size: var(--text-xs); overflow-wrap: anywhere; }
+
+    .checklist { list-style: none; margin: var(--sp-4) 0 0; padding: 0; }
+    .checklist li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: var(--sp-2); padding: var(--sp-2) 0; border-top: 1px solid var(--line); }
+    .checklist li:first-child { border-top: 0; }
+    .check-mark { font-weight: 700; color: var(--line-hover); text-align: center; }
+    .checklist li.is-ok .check-mark { color: var(--ok); }
+    .check-body b { display: block; font-size: var(--text-base); color: var(--ink); font-weight: 600; }
+    .check-body small { display: block; font-size: var(--text-sm); color: var(--muted); overflow-wrap: anywhere; }
+
+    .risk-list { list-style: none; margin: var(--sp-4) 0 0; padding: 0; display: grid; gap: var(--sp-4); }
+    .risk-list li { display: grid; gap: 3px; }
+    .risk-list b { font-size: var(--text-base); color: var(--ink); font-weight: 600; }
+    .risk-list span { font-size: var(--text-sm); color: var(--body); }
+    .risk-list code { justify-self: start; font-size: var(--text-xs); }
+
+    .terminal-flush { margin: var(--sp-3) 0; }
+
+    .runbook { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+    .runbook li {
+        display: grid; grid-template-columns: 40px minmax(0, 1fr) auto;
+        align-items: center; gap: var(--sp-4);
+        background: var(--surface); border: 1px solid var(--line);
+        border-radius: var(--radius); padding: var(--sp-4) var(--sp-5); box-shadow: var(--shadow-xs);
+    }
+    .runbook-n { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--brand); font-weight: 600; }
+    .runbook-main b { display: block; font-size: var(--text-md); color: var(--ink); font-weight: 650; }
+    .runbook-main span { font-size: var(--text-base); color: var(--body); }
+    .runbook-act code { font-size: var(--text-xs); white-space: nowrap; }
+
+    @media (max-width: 680px) {
+        .rail-step { grid-template-columns: 12px minmax(0, 1fr) auto; }
+        .rail-php, .rail-what, .rail-gate { grid-column: 2 / -1; }
+        .rail-step .badge { grid-column: 3; grid-row: 1; }
+        .runbook li { grid-template-columns: 32px minmax(0, 1fr); }
+        .runbook-act { grid-column: 2; }
+        .runbook-act code { white-space: normal; overflow-wrap: anywhere; }
+    }
+
     /* ---------- utilities (the only way to make one-off tweaks) ----------
           They sit at the end of the file on purpose: same specificity as the
           components, so they win by order. No style="" in views. */

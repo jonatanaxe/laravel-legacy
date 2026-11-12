@@ -55,6 +55,10 @@ php artisan lab:verify --base=http://127.0.0.1:8000
 
 # PHP 8.4 blocker inventory
 composer why-not php 8.4
+
+# Measures blockers and both suites for /migration (run it before a demo:
+# without it the page honestly says "not measured")
+php artisan lab:snapshot
 ```
 
 ## Quick map
