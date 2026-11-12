@@ -1,42 +1,100 @@
 name: ci
 
 # Minimum gate for a legacy app: nothing gets in unless the tests pass.
-# Runs on PHP 7.2 (the same version as the container) so CI proves the "before",
-# not a version the project doesn't support.
+# Runs on PHP 7.2 (the same version as the container) so CI proves the
+# "before", not a version the project doesn't support.
+#
+# Jobs, in the order a reviewer reads them (details: docs/ci.md):
+#   lint      syntax of every PHP file + composer.json/lock in sync
+#   kernel    behavior suite, in-memory SQLite        -> JUnit + testdox
+#   edge      real HTTP against `artisan serve`       -> JUnit
+#   evidence  lab:snapshot: blockers + both suites    -> snapshot.json
 on:
   push:
   pull_request:
 
+# A new push to the same branch makes the previous run worthless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PHP_VERSION: '7.2'
+
 jobs:
-  tests:
+  lint:
+    name: lint
     # ubuntu-20.04 runners were retired in 2025. setup-php installs 7.2 from
     # the ondrej PPA here; same base as the local container (PHP 7.2 on 22.04).
     runs-on: ubuntu-22.04
-
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ['7.2']
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install PHP ${{ matrix.php }}
-        uses: shivammathur/setup-php@v2
+      - uses: ./.github/actions/setup
         with:
-          php-version: ${{ matrix.php }}
-          # curl/dom are for the HTTP suite (tests/Http): Guzzle and HTML via DOM.
-          extensions: mbstring, pdo_sqlite, sqlite3, openssl, tokenizer, xml, curl, dom, ctype, json
-          coverage: none
+          php: ${{ env.PHP_VERSION }}
 
-      - name: Composer cache
-        uses: actions/cache@v4
+      - name: PHP syntax
+        # php -l catches parse errors in files no test loads (view/route/console).
+        run: find app database routes tests -name '*.php' -print0 | xargs -0 -n1 -P4 php -l > /dev/null
+
+      - name: Composer manifest
+        # Catches a composer.lock out of sync with composer.json.
+        run: composer validate --no-check-publish
+
+  kernel:
+    name: kernel tests
+    needs: lint
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
         with:
-          path: ~/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          php: ${{ env.PHP_VERSION }}
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          mkdir -p build
+
+      - name: Kernel suite (in-memory SQLite)
+        # phpunit.xml forces the in-memory database; TestCase refuses any other.
+        run: vendor/bin/phpunit --testdox --log-junit build/kernel-junit.xml --testdox-text build/kernel-testdox.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Kernel suite'
+            echo
+            echo '```'
+            tail -n 3 build/kernel-testdox.txt 2>/dev/null || echo 'no report'
+            echo '```'
+            php -r '$x = @simplexml_load_file("build/kernel-junit.xml"); if ($x) { $s = $x->testsuite; printf("**%d tests, %d assertions, %d failures, %d errors**\n", $s["tests"], $s["assertions"], $s["failures"], $s["errors"]); }'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-reports
+          path: build/
+          retention-days: 30
+
+  edge:
+    name: http (edge) tests
+    needs: lint
+    runs-on: ubuntu-22.04
+    env:
+      APP_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          php: ${{ env.PHP_VERSION }}
 
       - name: Prepare environment
         run: |
@@ -46,31 +104,90 @@ jobs:
           touch database/database.sqlite
           sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env
           sed -i 's#^DB_DATABASE=.*#DB_DATABASE='"$PWD"'/database/database.sqlite#' .env
+          sed -i 's#^APP_URL=.*#APP_URL='"$APP_URL"'#' .env
           # The local server is http: a secure cookie never comes back and login fails.
-          sed -i 's/^SESSION_SECURE_COOKIE=.*/SESSION_SECURE_COOKIE=false/' .env || true
+          echo 'SESSION_SECURE_COOKIE=false' >> .env
+          php artisan migrate --seed --force
+          mkdir -p build
+
+      - name: Edge suite (real HTTP)
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8000 > build/server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf "$APP_URL/health" > /dev/null && break
+            sleep 1
+          done
+          php artisan lab:verify --base="$APP_URL" --junit=build/edge-junit.xml
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Edge suite (real HTTP)'
+            echo
+            php -r '$x = @simplexml_load_file("build/edge-junit.xml"); if ($x) { $s = $x->testsuite; printf("**%d tests, %d assertions, %d failures, %d errors** against `php artisan serve`\n", $s["tests"], $s["assertions"], $s["failures"], $s["errors"]); } else { echo "no report\n"; }'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-reports
+          path: build/
+          retention-days: 30
+
+  evidence:
+    name: evidence (lab:snapshot)
+    # Runs after both suites are green: the snapshot is the measured state the
+    # /migration page and the home page read, produced by CI instead of a laptop.
+    needs: [kernel, edge]
+    runs-on: ubuntu-22.04
+    env:
+      APP_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          php: ${{ env.PHP_VERSION }}
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env
+          sed -i 's#^DB_DATABASE=.*#DB_DATABASE='"$PWD"'/database/database.sqlite#' .env
+          sed -i 's#^APP_URL=.*#APP_URL='"$APP_URL"'#' .env
           echo 'SESSION_SECURE_COOKIE=false' >> .env
           php artisan migrate --seed --force
 
-      - name: Syntax and manifest
+      - name: Measure (blockers + both suites)
         run: |
-          # php -l catches parse errors in files no test loads
-          # (view/route/console). composer validate catches an out-of-sync lock.
-          find app database routes tests -name '*.php' -print0 | xargs -0 -n1 -P4 php -l
-          composer validate --no-check-publish
-
-      - name: Automated tests
-        run: vendor/bin/phpunit --testdox
-
-      - name: Integration check
-        env:
-          BASE: http://127.0.0.1:8000
-          HOST: 127.0.0.1
-          SCHEME: http
-          RESOLVE: '0'
-        run: |
-          php artisan serve --host=127.0.0.1 --port=8000 &
+          php artisan serve --host=127.0.0.1 --port=8000 > /dev/null 2>&1 &
           for i in $(seq 1 30); do
-            curl -sf http://127.0.0.1:8000/health >/dev/null && break
+            curl -sf "$APP_URL/health" > /dev/null && break
             sleep 1
           done
-          php artisan lab:verify --base=http://127.0.0.1:8000
+          php artisan lab:snapshot
+
+      - name: Summary
+        if: always()
+        run: |
+          php -r '
+            $s = json_decode(@file_get_contents("storage/app/migration/snapshot.json"), true);
+            if (!$s) { echo "### Evidence\n\nno snapshot\n"; exit; }
+            echo "### Evidence (lab:snapshot)\n\n";
+            echo "| Measure | Value |\n|---|---|\n";
+            printf("| PHP | %s |\n| Laravel | %s |\n| PHP 8.4 blockers | %d |\n", $s["php"] ?? "?", $s["laravel"] ?? "?", count($s["blockers"] ?? []));
+            foreach ($s["suites"] ?? [] as $suite) {
+              printf("| %s | %s, %d tests, %d assertions |\n", $suite["label"], $suite["ok"] ? "green" : "FAILED", $suite["tests"], $suite["assertions"]);
+            }
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-snapshot
+          path: storage/app/migration/snapshot.json
+          retention-days: 90

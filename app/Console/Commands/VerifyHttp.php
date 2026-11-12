@@ -27,7 +27,8 @@ class VerifyHttp extends Command
     protected $signature = 'lab:verify
                             {--base= : Target URL (default: APP_URL)}
                             {--filter= : Run only the tests whose name matches the filter}
-                            {--stop-on-failure : Stop at the first failing test}';
+                            {--stop-on-failure : Stop at the first failing test}
+                            {--junit= : Also write a JUnit XML report to this path (CI artifact)}';
 
     protected $description = 'Runs the edge suite (real HTTP) against the live server';
 
@@ -60,6 +61,11 @@ class VerifyHttp extends Command
 
         if ($this->option('stop-on-failure')) {
             $arguments[] = '--stop-on-failure';
+        }
+
+        if ($this->option('junit')) {
+            $arguments[] = '--log-junit';
+            $arguments[] = $this->option('junit');
         }
 
         $this->line('target: ' . $base);

@@ -1,5 +1,7 @@
 # Atlas ERP: a legacy migration case
 
+[![ci](https://github.com/jonatanaxe/laravel-legacy/actions/workflows/ci.yml/badge.svg)](https://github.com/jonatanaxe/laravel-legacy/actions/workflows/ci.yml)
+
 Technical case prepared for the PALO IT interview (AI Native Software
 Engineer). Atlas ERP is the system of a fictional client: Laravel **5.8.38** on
 PHP **7.2.34**, used as the "before" of a real migration to PHP 8.4. It has a
@@ -14,6 +16,7 @@ Docs:
 
 - `docs/cto-brief.md`: measured numbers, decisions and why, risks, demo runbook.
 - `docs/security.md`: protections, where they live and how each attack is stopped.
+- `docs/ci.md`: the pipeline, what each job proves, its artifacts, and how deployment would work.
 - `docs/legacy-answer-key.md`: the 26 planted legacy problems and where each one breaks.
 
 ## Running it
