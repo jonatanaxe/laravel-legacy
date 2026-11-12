@@ -33,7 +33,11 @@ migration to PHP 8.4.
 - Audit trail per task (`task_events`) written by an observer.
 - Read-only JSON API with a token and rate limiting.
 - `/health` with database, cache and disk checks; 200/503.
-- CI on PHP 7.2: `php -l`, `composer validate`, PHPUnit and the HTTP suite.
+- CI on PHP 7.2 with **five gates** (static checks, kernel suite, real-HTTP
+  suite, every migration rolled back on MariaDB, a measured snapshot) and two
+  reports that never block (coverage, dependency advisories). Every change
+  enters through a PR with a rollback section. Details and the why of each
+  choice: [`docs/ci.md`](ci.md).
 - Reproducible setup: `php artisan migrate:fresh --seed`.
 
 **Legacy, on purpose**
@@ -68,6 +72,10 @@ migration to PHP 8.4.
 | Tailwind 1 + Alpine 2 (2020 era) | the front end is legacy too, so its upgrade is part of the case | `tailwind.config.js` |
 | Tokens as the only source of color | a whole rebrand is one CSS block | `partials/ui.blade.php` |
 | Applied migrations are never edited | a new data migration carries each rename | `database/migrations` |
+| Rollback proven on MariaDB, not claimed | a CI job runs every `down()` with data in the tables, on the production engine | `.github/workflows/ci.yml` |
+| Gates vs. reports in CI | a gate must be able to turn green; Laravel 5.8 advisories can't before the migration, so they are measured, not gated | `docs/ci.md` |
+| Pages read measured numbers | hard-coded test counts drifted (182 shown, 183 real); `/` and `/migration` read the CI snapshot | `app/Migration/Evidence.php` |
+| Tests can only rebuild `:memory:` | a leaked `DB_CONNECTION` once let `RefreshDatabase` wipe the real database | `phpunit.xml`, `tests/TestCase.php` |
 
 ## What is proven (and how to reproduce it)
 
@@ -108,6 +116,23 @@ Real findings the process caught along the way:
    `onclick` handlers blocked by the CSP, and drew old tasks in the future
    (unsigned `diffInDays`).
 9. The migration overview page existed with no route pointing to it.
+
+Found later, by CI and by checking every screen in a browser:
+
+10. `lab:snapshot` ran the suite with the real `DB_CONNECTION` and
+    `RefreshDatabase` **wiped the local database**. Three guards now make that
+    impossible.
+11. The migration rollbacks never worked on SQLite (table rebuilds drop
+    indexes and foreign keys). The contract is now explicit: rollback is
+    guaranteed on MariaDB, proven by CI.
+12. A test passed locally and failed on CI's fresh seed: it searched a title
+    from before the translation, on a stale local database.
+13. A second flaky test: a random name with an apostrophe ("O'Reilly") broke
+    an escaped-output assertion on one of two runs.
+14. `/migration`, step 1 of the demo, had 49 CSS classes with no rule and
+    showed "0 blockers" in green when nothing had been measured.
+15. The demo project was called "Laravel 8.4 Migration", a version that never
+    existed; and the home page quoted 182 tests when there were 183.
 
 ## Known risks (on purpose)
 
