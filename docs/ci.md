@@ -23,7 +23,9 @@ production. Workflow: `.github/workflows/ci.yml`.
 
 ```
 lint ──┬── kernel tests ──┐
-       └── http (edge) ───┴── evidence (lab:snapshot)
+       ├── http (edge) ───┴── evidence (lab:snapshot)
+       ├── coverage (report)
+       └── dependency audit (report)
 ```
 
 | Job | What it proves | How | Artifact |
@@ -32,6 +34,8 @@ lint ──┬── kernel tests ──┐
 | **kernel tests** | The business rules: authorization, mass assignment, concurrency (409), audit trail, CSV import, reminders, the frozen legacy billing module | `vendor/bin/phpunit` on in-memory SQLite | `kernel-reports`: JUnit XML + testdox |
 | **http (edge) tests** | What only exists over real HTTP: CSRF (419), cookies, throttling (429), security headers, IDOR between sessions | seeds a SQLite file, starts `php artisan serve`, runs `php artisan lab:verify` | `edge-reports`: JUnit XML + server log |
 | **evidence** | The measured state of the migration: PHP 8.4 blockers (`composer why-not php 8.4`) and both suites, in one file | `php artisan lab:snapshot` | `migration-snapshot`: `snapshot.json`, kept 90 days |
+| **coverage** *(report)* | How much of `app/` the kernel suite executes: the answer to "how much of the legacy is frozen?" | `phpunit` with Xdebug (PHPUnit 7.5 predates PCOV) | `coverage`: HTML report + clover XML |
+| **dependency audit** *(report)* | Known security advisories and abandoned packages in `composer.lock` | `composer audit --locked` | `dependency-audit`: `audit.json` |
 
 Every test in the repository runs on every push; nothing is skipped because
 the code is legacy. That is the point: the characterization tests in
@@ -43,6 +47,12 @@ are the first thing that has to stay green.
 | `tests/Unit` (incl. `tests/Unit/Legacy`) | `phpunit.xml` → Unit | kernel tests |
 | `tests/Feature` | `phpunit.xml` → Feature | kernel tests |
 | `tests/Http` | `phpunit-http.xml` → HTTP | http (edge) tests |
+
+**Reports never block a merge.** Laravel 5.8 / PHP 7.2 carries known
+advisories by design: they are the risk the migration removes, so the audit
+reports them instead of failing on them. Coverage is a measurement too, with
+no threshold: a threshold on a legacy codebase rewards writing tests for easy
+code instead of the risky paths.
 
 `kernel` and `edge` run in parallel after `lint`. `evidence` only runs when
 both are green, so a snapshot never records a broken state as "measured".
