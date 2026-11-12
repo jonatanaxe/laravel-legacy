@@ -12,12 +12,14 @@ billing module inherited from 2009 (`app/Legacy`).
 The front end is legacy too: Tailwind 1.9 and Alpine 2.8, the versions a
 Laravel 5.8 app would have adopted. Their upgrade is part of the plan.
 
-Docs:
+## Docs
 
-- `docs/cto-brief.md`: measured numbers, decisions and why, risks, demo runbook.
-- `docs/security.md`: protections, where they live and how each attack is stopped.
-- `docs/ci.md`: the pipeline, what each job proves, its artifacts, and how deployment would work.
-- `docs/legacy-answer-key.md`: the 26 planted legacy problems and where each one breaks.
+| Doc | What's in it |
+|---|---|
+| [Engineering brief](docs/cto-brief.md) | Measured numbers, decisions and why, known risks, the migration plan and the 6-minute demo runbook |
+| [Security practices](docs/security.md) | Each protection, where it lives in the code and how to attack it to see the defense |
+| [CI/CD](docs/ci.md) | The pipeline, what each job proves, its artifacts, what CI has caught and how deployment would work |
+| [Legacy answer key](docs/legacy-answer-key.md) | The 26 planted legacy problems, the version each one breaks on and the test that catches it |
 
 ## Running it
 
