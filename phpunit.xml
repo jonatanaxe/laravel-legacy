@@ -23,13 +23,19 @@
         </whitelist>
     </filter>
     <php>
-        <server name="APP_ENV" value="testing"/>
-        <server name="BCRYPT_ROUNDS" value="4"/>
-        <server name="DB_CONNECTION" value="sqlite"/>
-        <server name="DB_DATABASE" value=":memory:"/>
-        <server name="CACHE_DRIVER" value="array"/>
-        <server name="MAIL_DRIVER" value="array"/>
-        <server name="QUEUE_CONNECTION" value="sync"/>
-        <server name="SESSION_DRIVER" value="array"/>
+        <!--
+            <env force="true">, not <server>: Laravel 5.8's env() reads getenv()
+            before $_SERVER, so a DB_CONNECTION already exported by the parent
+            process (e.g. `php artisan lab:snapshot`, which loads .env) used to
+            win, and RefreshDatabase rebuilt the real database.
+        -->
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="CACHE_DRIVER" value="array" force="true"/>
+        <env name="MAIL_DRIVER" value="array" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
     </php>
 </phpunit>
