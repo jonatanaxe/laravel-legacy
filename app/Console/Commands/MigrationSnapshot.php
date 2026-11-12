@@ -45,11 +45,23 @@ class MigrationSnapshot extends Command
         if ($this->option('skip-tests')) {
             $snapshot['suites'] = isset($previous['suites']) ? $previous['suites'] : [];
         } else {
+            // This process loaded .env and exported it; the child would inherit
+            // the real DB_CONNECTION. The kernel suite gets its environment
+            // spelled out, so RefreshDatabase can only touch :memory:.
             $snapshot['suites'][] = $this->suite(
                 'kernel',
                 'Kernel (in-memory SQLite)',
                 'vendor/bin/phpunit',
-                [PHP_BINARY, base_path('vendor/bin/phpunit')]
+                [PHP_BINARY, base_path('vendor/bin/phpunit')],
+                [
+                    'APP_ENV' => 'testing',
+                    'DB_CONNECTION' => 'sqlite',
+                    'DB_DATABASE' => ':memory:',
+                    'CACHE_DRIVER' => 'array',
+                    'SESSION_DRIVER' => 'array',
+                    'QUEUE_CONNECTION' => 'sync',
+                    'MAIL_DRIVER' => 'array',
+                ]
             );
 
             $snapshot['suites'][] = $this->suite(
@@ -128,9 +140,9 @@ class MigrationSnapshot extends Command
      * Runs the suite and extracts what matters from PHPUnit's own output:
      * counts, time and verdict. No guessing.
      */
-    private function suite($key, $label, $command, array $arguments)
+    private function suite($key, $label, $command, array $arguments, array $env = [])
     {
-        $process = new Process($arguments, base_path());
+        $process = new Process($arguments, base_path(), $env ?: null);
         $process->setTimeout(null);
 
         $this->line('running ' . $command . ' ...');
