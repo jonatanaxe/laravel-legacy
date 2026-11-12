@@ -1,0 +1,31 @@
+name: Set up PHP and dependencies
+description: >
+  PHP from setup-php (same version as the local container), Composer cache
+  keyed on composer.lock, and composer install. Shared by every job so the
+  runtime is identical across them.
+
+inputs:
+  php:
+    description: PHP version
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install PHP ${{ inputs.php }}
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php }}
+        # curl/dom are for the HTTP suite (tests/Http): Guzzle and HTML via DOM.
+        extensions: mbstring, pdo_sqlite, sqlite3, openssl, tokenizer, xml, curl, dom, ctype, json
+        coverage: none
+
+    - name: Composer cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.composer/cache
+        key: composer-${{ inputs.php }}-${{ hashFiles('composer.lock') }}
+
+    - name: Install dependencies
+      shell: bash
+      run: composer install --no-interaction --prefer-dist --no-progress
