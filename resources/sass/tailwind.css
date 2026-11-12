@@ -1,0 +1,16 @@
+/* Tailwind 1 entry. Output: public/css/tailwind.css (npm run css:build). */
+@tailwind base;
+
+/* The only part of preflight we keep: without it, `border-b`, `border-l` etc.
+   set a width but no style, and the border doesn't show. The `*` selector has
+   zero specificity, so any legacy CSS class still wins. */
+*, ::before, ::after {
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--line);
+}
+@tailwind components;
+@tailwind utilities;
+
+/* Alpine 2: hides menus until Alpine initializes. */
+[x-cloak] { display: none !important; }

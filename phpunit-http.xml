@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    HTTP suite (tests/Http): runs against the live server, not the kernel.
+
+    Kept apart from phpunit.xml on purpose:
+      - no in-memory SQLite and no per-test transaction;
+      - needs a running server, a seeded database and the network;
+      - it is the only suite that proves CSRF (419), cookies, throttling,
+        headers and TLS.
+
+    Target: HTTP_BASE (default https://laravel-legacy.dev). HTTP_RESOLVE=0
+    turns off resolving the domain to 127.0.0.1 (CI uses `php artisan serve`).
+-->
+<phpunit backupGlobals="false"
+         backupStaticAttributes="false"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         convertErrorsToExceptions="true"
+         convertNoticesToExceptions="true"
+         convertWarningsToExceptions="true"
+         processIsolation="false"
+         stopOnFailure="false">
+    <testsuites>
+        <testsuite name="HTTP">
+            <directory suffix="Test.php">./tests/Http</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

@@ -1,31 +1,59 @@
-/vendor/
-node_modules/
-npm-debug.log
-yarn-error.log
+# --- Dependencies -------------------------------------------------------------
+/vendor
+/node_modules
+# Tailwind 1 CLI, installed locally (see README)
+/tools/tw/node_modules
 
-# Laravel 4 specific
-bootstrap/compiled.php
-app/storage/
-
-# Laravel 5 & Lumen specific
-public/storage
-public/hot
-
-# Laravel 5 & Lumen specific with changed public path
-public_html/storage
-public_html/hot
-
-storage/*.key
+# --- Environment and secrets --------------------------------------------------
+# Only the template is versioned.
 .env
-Homestead.yaml
-Homestead.json
-/.vagrant
+.env.*
+!.env.example
+/storage/*.key
+*.pem
+*.key
+*.p12
+auth.json
+
+# --- Build output -------------------------------------------------------------
+# Compiled Tailwind: built with `npm run css:build`
+/public/css/tailwind.css
+/public/hot
+/public/storage
+/public/mix-manifest.json
+/public/build
+
+# --- Tests and tooling caches -------------------------------------------------
 .phpunit.result.cache
 /.phpunit.cache
-
-/public/build
-/storage/pail
-.env.backup
-.env.production
+/coverage
+/build
+.php_cs.cache
+.php-cs-fixer.cache
 .phpactor.json
-auth.json
+/storage/pail
+
+# --- Local data: dumps, archives, logs ----------------------------------------
+*.sql
+*.sql.gz
+*.dump
+*.bak
+*.zip
+*.tar
+*.tar.gz
+*.log
+
+# --- Local environment and editors --------------------------------------------
+Homestead.json
+Homestead.yaml
+/.vagrant
+.claude/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Local Docker environment (madock): personal config, not part of the case
+/.madock

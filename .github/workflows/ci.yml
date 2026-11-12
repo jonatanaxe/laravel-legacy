@@ -1,0 +1,76 @@
+name: ci
+
+# Minimum gate for a legacy app: nothing gets in unless the tests pass.
+# Runs on PHP 7.2 (the same version as the container) so CI proves the "before",
+# not a version the project doesn't support.
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    # ubuntu-20.04 runners were retired in 2025. setup-php installs 7.2 from
+    # the ondrej PPA here; same base as the local container (PHP 7.2 on 22.04).
+    runs-on: ubuntu-22.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.2']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          # curl/dom are for the HTTP suite (tests/Http): Guzzle and HTML via DOM.
+          extensions: mbstring, pdo_sqlite, sqlite3, openssl, tokenizer, xml, curl, dom, ctype, json
+          coverage: none
+
+      - name: Composer cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          # File-based SQLite: no external service needed in CI.
+          touch database/database.sqlite
+          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env
+          sed -i 's#^DB_DATABASE=.*#DB_DATABASE='"$PWD"'/database/database.sqlite#' .env
+          # The local server is http: a secure cookie never comes back and login fails.
+          sed -i 's/^SESSION_SECURE_COOKIE=.*/SESSION_SECURE_COOKIE=false/' .env || true
+          echo 'SESSION_SECURE_COOKIE=false' >> .env
+          php artisan migrate --seed --force
+
+      - name: Syntax and manifest
+        run: |
+          # php -l catches parse errors in files no test loads
+          # (view/route/console). composer validate catches an out-of-sync lock.
+          find app database routes tests -name '*.php' -print0 | xargs -0 -n1 -P4 php -l
+          composer validate --no-check-publish
+
+      - name: Automated tests
+        run: vendor/bin/phpunit --testdox
+
+      - name: Integration check
+        env:
+          BASE: http://127.0.0.1:8000
+          HOST: 127.0.0.1
+          SCHEME: http
+          RESOLVE: '0'
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8000 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health >/dev/null && break
+            sleep 1
+          done
+          php artisan lab:verify --base=http://127.0.0.1:8000
