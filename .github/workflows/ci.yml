@@ -8,6 +8,7 @@ name: ci
 #   lint      syntax of every PHP file + composer.json/lock in sync
 #   kernel    behavior suite, in-memory SQLite        -> JUnit + testdox
 #   edge      real HTTP against `artisan serve`       -> JUnit
+#   migrations up, reset (every down()), up on MariaDB
 #   evidence  lab:snapshot: blockers + both suites    -> snapshot.json
 on:
   push:
@@ -145,6 +146,75 @@ jobs:
           name: edge-reports
           path: build/
           retention-days: 30
+
+  migrations:
+    name: migrations (rollback on MariaDB)
+    # "Every step has a rollback" is a claim until something runs the down()
+    # methods. This job does, on MariaDB 11.8 (the production engine, same
+    # version as the local container), with seeded data in the tables.
+    # SQLite is not a rollback target: it rebuilds a table to drop a column
+    # and loses its indexes and foreign keys; dev and CI recreate it with
+    # migrate:fresh instead.
+    needs: lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: atlas
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_DATABASE: atlas
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/setup
+        with:
+          php: ${{ env.PHP_VERSION }}
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Up, with data
+        run: php artisan migrate --seed --force
+
+      - name: Down, every step
+        run: |
+          php artisan migrate:reset --force
+          # Nothing may be left applied: a down() that silently does nothing
+          # to the migrations table would show up here.
+          if php artisan migrate:status | grep -q '| Yes'; then
+            php artisan migrate:status
+            echo "::error::migrations still applied after migrate:reset"
+            exit 1
+          fi
+
+      - name: Up again, and seed again
+        # Proves every down() left a schema the up() can rebuild from.
+        run: |
+          php artisan migrate --force
+          php artisan db:seed --force
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Migrations on MariaDB 11.8'
+            echo
+            echo "**$(ls database/migrations/*.php | wc -l) migrations**: up with seed, reset (every down()), up and seed again."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   evidence:
     name: evidence (lab:snapshot)

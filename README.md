@@ -95,7 +95,8 @@ Nothing is committed straight to `main`. Every change, however small:
 1. a branch cut from `main`, one logical unit per branch;
 2. a pull request filled from the template: **What, Why, Verification,
    Rollback**;
-3. CI green: lint, kernel suite, edge suite against a running server, and the
+3. CI green: lint, kernel suite, edge suite against a running server,
+   every migration rolled back and re-applied on MariaDB, and the
    `lab:snapshot` evidence (details in [docs/ci.md](docs/ci.md));
 4. squash merge, so `main` reads as one commit per step.
 
