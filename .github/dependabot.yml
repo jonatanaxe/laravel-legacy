@@ -1,0 +1,19 @@
+version: 2
+
+# Only the CI's own dependencies. The actions are pinned by commit SHA, so a
+# moved tag can't change what runs; Dependabot proposes the bumps as PRs,
+# each one gated by the same pipeline.
+#
+# Composer is deliberately absent: the app's dependencies are frozen on
+# Laravel 5.8 / PHP 7.2 as the "before" of the migration, and every change to
+# them is a planned step (docs/cto-brief.md), not an automatic PR.
+updates:
+  - package-ecosystem: github-actions
+    # The workflows, plus the shared composite action, which pins its own.
+    directories:
+      - /
+      - /.github/actions/setup
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci

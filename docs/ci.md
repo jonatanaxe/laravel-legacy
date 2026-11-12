@@ -7,8 +7,15 @@ production. Workflow: `.github/workflows/ci.yml`.
 ## When it runs
 
 - Every push to any branch and every pull request.
+- **Every night** (06:17 UTC), with no code change. In a legacy app the
+  environment rots on its own: a runner image is retired, a PPA drops an old
+  PHP. The nightly run finds out before the next PR does.
+- **On demand** from the Actions tab (`workflow_dispatch`), e.g. right before
+  a demo.
 - A new push to the same branch cancels the run still in progress
   (`concurrency`): only the latest commit matters.
+- Every job has a `timeout-minutes` (10 to 20): a server that never comes up
+  fails in minutes instead of holding a runner for six hours.
 - Read-only token (`permissions: contents: read`): CI checks, it never writes
   to the repository.
 
@@ -52,6 +59,23 @@ One definition, so the four jobs can't drift apart.
 
 The runner is `ubuntu-22.04`, the same base as the local container.
 `ubuntu-20.04` runners were retired by GitHub in April 2025.
+
+### Supply chain
+
+Every third-party action is pinned to a **commit SHA**, with the version in a
+comment (`actions/checkout@11d5960… # v4.4.0`). A tag can be moved to other
+code; a SHA can't. Dependabot (`.github/dependabot.yml`) proposes updates to
+those pins weekly, each as a PR that goes through this same pipeline.
+
+Dependabot covers **only** the actions. The app's Composer dependencies are
+frozen on purpose (the "before" of the migration); changing them is a planned
+step, not an automatic PR.
+
+### Pull requests
+
+`.github/pull_request_template.md` asks every PR for **What, Why,
+Verification and Rollback**. The last section is the method in one line: a
+change without a rollback is a gamble, not a step.
 
 ## Reproduce it locally
 

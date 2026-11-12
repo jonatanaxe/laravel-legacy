@@ -12,6 +12,13 @@ name: ci
 on:
   push:
   pull_request:
+  # Nightly, with no code change: in a legacy app the environment rots on its
+  # own (a retired runner image, a PPA dropping PHP 7.2). This finds out
+  # before a PR does. 06:17 UTC = 03:17 in Sao Paulo.
+  schedule:
+    - cron: '17 6 * * *'
+  # Manual run from the Actions tab, e.g. right before a demo.
+  workflow_dispatch:
 
 # A new push to the same branch makes the previous run worthless.
 concurrency:
@@ -30,8 +37,9 @@ jobs:
     # ubuntu-20.04 runners were retired in 2025. setup-php installs 7.2 from
     # the ondrej PPA here; same base as the local container (PHP 7.2 on 22.04).
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
         with:
           php: ${{ env.PHP_VERSION }}
@@ -48,8 +56,9 @@ jobs:
     name: kernel tests
     needs: lint
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
         with:
           php: ${{ env.PHP_VERSION }}
@@ -78,7 +87,7 @@ jobs:
 
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: kernel-reports
           path: build/
@@ -88,10 +97,11 @@ jobs:
     name: http (edge) tests
     needs: lint
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     env:
       APP_URL: http://127.0.0.1:8000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
         with:
           php: ${{ env.PHP_VERSION }}
@@ -130,7 +140,7 @@ jobs:
 
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: edge-reports
           path: build/
@@ -142,10 +152,11 @@ jobs:
     # /migration page and the home page read, produced by CI instead of a laptop.
     needs: [kernel, edge]
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     env:
       APP_URL: http://127.0.0.1:8000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
         with:
           php: ${{ env.PHP_VERSION }}
@@ -186,7 +197,7 @@ jobs:
 
       - name: Upload snapshot
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: migration-snapshot
           path: storage/app/migration/snapshot.json
