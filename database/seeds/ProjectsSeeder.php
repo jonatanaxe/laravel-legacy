@@ -15,7 +15,7 @@ use Illuminate\Database\Seeder;
 class ProjectsSeeder extends Seeder
 {
     /** Single source of the demo project's name (TasksSeeder reads it too). */
-    const NAME = 'Laravel 8.4 Migration';
+    const NAME = 'PHP 8.4 Migration';
 
     public function run()
     {
